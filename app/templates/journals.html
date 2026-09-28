@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% set page_title = "Load All Jurnal" %}
+{% set page_subtitle = database.alias ~ " • Journal Voucher Sync Inspector" %}
+{% block content %}
+<div class="journal-hero">
+  <div><span class="eyebrow light">ACCURATE ONLINE • READ ONLY</span><h1>Load All Jurnal</h1><p>Tarik ulang Journal Voucher dan cek langsung akun, debit/kredit, Department, serta Project yang benar-benar tersimpan di SUPERTOOLS.</p></div>
+  <form method="post" action="/journals/load-all"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="database_id" value="{{ database.id }}"><button class="btn btn-accent journal-load-btn">↻ Load All Jurnal</button></form>
+</div>
+
+{% if last_job %}
+<div class="panel journal-job">
+  <div class="progress-meta"><strong>{{ last_job.status }}</strong><span>{{ last_job.progress }}%</span></div>
+  <div class="progress"><i style="width:{{ last_job.progress }}%"></i></div>
+  <p class="muted">{{ last_job.message }}</p>
+  {% if last_job.status in ['QUEUED','RUNNING'] %}<div class="button-row"><a class="btn btn-outline btn-sm" href="/journals?db_id={{ database.id }}">Refresh Progress</a></div>{% endif %}
+</div>
+{% endif %}
+
+<div class="stat-grid six journal-stats">
+  <div class="stat-card"><span>JOURNAL HEADER</span><strong>{{ "{:,}".format(header_count) }}</strong><small>hasil list.do</small></div>
+  <div class="stat-card"><span>DETAIL GL</span><strong>{{ "{:,}".format(line_count) }}</strong><small>hasil detail.do</small></div>
+  <div class="stat-card"><span>DEPARTMENT TERISI</span><strong>{{ "{:,}".format(dept_count) }}</strong><small>baris detail</small></div>
+  <div class="stat-card"><span>PROJECT TERISI</span><strong>{{ "{:,}".format(project_count) }}</strong><small>baris detail</small></div>
+  <div class="stat-card"><span>CASH / BANK</span><strong>{{ "{:,}".format(cash_count) }}</strong><small>siap trial preview</small></div>
+  <div class="stat-card"><span>AKUN TIDAK DIKENAL</span><strong>{{ "{:,}".format(unknown_accounts) }}</strong><small>tidak match ke GL Account</small></div>
+</div>
+
+{% if header_count > 0 and line_count == 0 %}
+<div class="danger-banner"><div><strong>Header jurnal ditemukan, tetapi detail GL masih 0.</strong><span>Ini berarti response detail.do belum terbaca oleh parser. Jalankan Load All Jurnal pada versi ini lalu lihat status sync.</span></div></div>
+{% elif header_count == 0 %}
+<div class="trial-banner"><div><strong>Belum ada Journal Voucher di cache.</strong><span>Klik Load All Jurnal. Jika tetap 0, endpoint journal-voucher/list.do pada database/token tersebut tidak mengembalikan transaksi yang Anda harapkan.</span></div></div>
+{% endif %}
+
+<div class="toolbar-card journal-filter-card">
+  <form method="get" action="/journals" class="journal-filter-form">
+    <input type="hidden" name="db_id" value="{{ database.id }}">
+    <label>Akun<input name="account" value="{{ account_filter }}" placeholder="mis. 1000 atau bank"></label>
+    <label>Department<input name="department" value="{{ department_filter }}" placeholder="nama department"></label>
+    <label>Project<input name="project" value="{{ project_filter }}" placeholder="nomor project"></label>
+    <button class="btn btn-primary">Filter</button><a class="btn btn-outline" href="/journals?db_id={{ database.id }}">Reset</a>
+  </form>
+  <span class="microcopy">Menampilkan maks. 1.000 baris terbaru.</span>
+</div>
+
+<div class="report-table-wrap journal-table-wrap">
+<table class="data-table journal-table">
+<thead><tr><th>Tanggal</th><th>No Jurnal</th><th>Akun</th><th>Nama Akun</th><th>Type</th><th class="num">Debit</th><th class="num">Kredit</th><th>Department</th><th>Project</th><th>Memo</th></tr></thead>
+<tbody>
+{% for line, header, account in rows %}
+<tr>
+  <td>{{ header.trans_date.strftime('%d/%m/%Y') }}</td><td><strong>{{ header.number or ('ID ' ~ header.accurate_id) }}</strong></td>
+  <td>{{ line.account_no }}</td><td>{{ account.name if account else '(akun belum tersinkron)' }}</td><td><span class="type-pill">{{ account.account_type if account else 'UNKNOWN' }}</span></td>
+  <td class="num">{{ "{:,.2f}".format(line.debit or 0) }}</td><td class="num">{{ "{:,.2f}".format(line.credit or 0) }}</td>
+  <td>{% if line.department_name %}<span class="dimension-chip dept">{{ line.department_name }}</span>{% else %}<span class="dimension-empty">—</span>{% endif %}</td>
+  <td>{% if line.project_no %}<span class="dimension-chip project">{{ line.project_no }}</span>{% else %}<span class="dimension-empty">—</span>{% endif %}</td>
+  <td class="memo-cell">{{ line.memo or header.description }}</td>
+</tr>
+{% else %}
+<tr><td colspan="10" class="center muted" style="padding:35px">Belum ada detail jurnal tersinkron.</td></tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+{% endblock %}

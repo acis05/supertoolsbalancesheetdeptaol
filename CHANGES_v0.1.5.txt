@@ -1,0 +1,14 @@
+SUPERTOOLS BALANCE SHEET DEPARTEMENT/PROJECT AOL v0.1.5
+
+FIX / DIAGNOSTIC RELEASE
+- Added dedicated "Load All Jurnal" menu and page.
+- Shows Journal Header count, Detail GL line count, Department-filled count, Project-filled count, CASH_BANK count, and unmatched account count.
+- Shows up to 1,000 synced journal lines with date, journal number, account, account type, debit, credit, department, project, memo.
+- Added account / department / project filters.
+- Added Journal-only reload action that refreshes GL Accounts and reloads all records returned by journal-voucher list/detail APIs.
+- Hardened parser for detailJournalVoucher response wrappers and minor field-shape variations.
+- Added fallback support for nested account/department/project objects and separate debit/credit fields.
+- Normalizes AOL accountType to uppercase underscore enum.
+- Report page now warns when local Detail GL cache is empty or when Trial mode has no CASH_BANK rows.
+- Dashboard now includes Load All Jurnal shortcut.
+- Full sync status now reports journal headers, detail GL lines, Department and Project coverage.

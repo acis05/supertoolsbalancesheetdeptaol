@@ -17,11 +17,11 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import settings
 from app.database import Base, engine, get_db, SessionLocal
-from app.models import User, OAuthCredential, AccurateDatabase, SyncJob
+from app.models import User, OAuthCredential, AccurateDatabase, SyncJob, GLAccount, JournalHeader, JournalLine
 from app.core.security import hash_password, verify_password, generate_password, encrypt_secret, csrf_token, validate_csrf
 from app.core.auth import current_user, is_admin, can_use_app, is_trial
 from app.services.accurate_client import AccurateOAuthClient, AccurateClient, credential_access_token
-from app.services.sync_service import run_full_sync
+from app.services.sync_service import run_full_sync, run_journal_sync
 from app.reporting.balance_sheet import build_balance_sheet
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -344,6 +344,75 @@ def sync_status(job_id: int, request: Request, db: Session = Depends(get_db)):
     if not job: raise HTTPException(404)
     return {"status":job.status,"progress":job.progress,"message":job.message}
 
+
+
+@app.get("/journals", response_class=HTMLResponse)
+def journals_page(request: Request, db_id: int | None = None, account: str = "", department: str = "", project: str = "", db: Session = Depends(get_db)):
+    user = require_user(request, db)
+    q = select(AccurateDatabase).where(AccurateDatabase.user_id == user.id)
+    q = q.where(AccurateDatabase.id == db_id) if db_id else q.where(AccurateDatabase.selected == True)  # noqa: E712
+    database = db.scalar(q)
+    if not database:
+        flash(request, "Pilih database Accurate Online terlebih dahulu.", "info")
+        return RedirectResponse("/accurate/databases", status_code=303)
+
+    header_count = db.scalar(select(func.count()).select_from(JournalHeader).where(JournalHeader.database_id == database.id)) or 0
+    line_count = db.scalar(select(func.count()).select_from(JournalLine).where(JournalLine.database_id == database.id)) or 0
+    dept_count = db.scalar(select(func.count()).select_from(JournalLine).where(JournalLine.database_id == database.id, JournalLine.department_name != "")) or 0
+    project_count = db.scalar(select(func.count()).select_from(JournalLine).where(JournalLine.database_id == database.id, JournalLine.project_no != "")) or 0
+    cash_count = db.scalar(
+        select(func.count()).select_from(JournalLine)
+        .join(GLAccount, (GLAccount.database_id == JournalLine.database_id) & (GLAccount.account_no == JournalLine.account_no))
+        .where(JournalLine.database_id == database.id, GLAccount.account_type == "CASH_BANK")
+    ) or 0
+    unknown_accounts = db.scalar(
+        select(func.count()).select_from(JournalLine)
+        .outerjoin(GLAccount, (GLAccount.database_id == JournalLine.database_id) & (GLAccount.account_no == JournalLine.account_no))
+        .where(JournalLine.database_id == database.id, GLAccount.id.is_(None))
+    ) or 0
+
+    stmt = (
+        select(JournalLine, JournalHeader, GLAccount)
+        .join(JournalHeader, (JournalHeader.database_id == JournalLine.database_id) & (JournalHeader.accurate_id == JournalLine.journal_accurate_id))
+        .outerjoin(GLAccount, (GLAccount.database_id == JournalLine.database_id) & (GLAccount.account_no == JournalLine.account_no))
+        .where(JournalLine.database_id == database.id)
+        .order_by(JournalHeader.trans_date.desc(), JournalHeader.accurate_id.desc(), JournalLine.line_accurate_id.asc())
+    )
+    if account:
+        stmt = stmt.where(JournalLine.account_no.ilike(f"%{account}%"))
+    if department:
+        stmt = stmt.where(JournalLine.department_name.ilike(f"%{department}%"))
+    if project:
+        stmt = stmt.where(JournalLine.project_no.ilike(f"%{project}%"))
+    rows = db.execute(stmt.limit(1000)).all()
+    last_job = db.scalar(select(SyncJob).where(SyncJob.database_id == database.id).order_by(SyncJob.id.desc()).limit(1))
+    return templates.TemplateResponse("journals.html", template_context(
+        request, user, database=database, rows=rows, header_count=header_count, line_count=line_count,
+        dept_count=dept_count, project_count=project_count, cash_count=cash_count, unknown_accounts=unknown_accounts,
+        last_job=last_job, account_filter=account, department_filter=department, project_filter=project,
+    ))
+
+
+@app.post("/journals/load-all")
+async def journals_load_all(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    user = require_user(request, db)
+    form = await request.form()
+    if not validate_csrf(request.session, form.get("csrf")):
+        raise HTTPException(400, "Invalid CSRF")
+    database_id = int(form.get("database_id") or 0)
+    row = db.scalar(select(AccurateDatabase).where(AccurateDatabase.id == database_id, AccurateDatabase.user_id == user.id))
+    if not row or not user.oauth:
+        flash(request, "Database/OAuth belum siap.", "error")
+        return RedirectResponse("/journals", status_code=303)
+    running = db.scalar(select(SyncJob).where(SyncJob.database_id == row.id, SyncJob.status.in_(["QUEUED","RUNNING"])).order_by(SyncJob.id.desc()).limit(1))
+    if running:
+        flash(request, "Masih ada proses sync yang berjalan.", "info")
+        return RedirectResponse(f"/journals?db_id={row.id}", status_code=303)
+    job = SyncJob(user_id=user.id, database_id=row.id, status="QUEUED", message="Load All Jurnal menunggu worker...")
+    db.add(job); db.commit(); db.refresh(job)
+    background_tasks.add_task(run_journal_sync, job.id)
+    flash(request, "Load All Jurnal dimulai. Refresh halaman ini untuk melihat jumlah jurnal/detail yang berhasil masuk.", "success")
+    return RedirectResponse(f"/journals?db_id={row.id}", status_code=303)
 
 # ---------- Reports ----------
 @app.get("/report", response_class=HTMLResponse)

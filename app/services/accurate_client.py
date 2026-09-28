@@ -100,10 +100,19 @@ class AccurateClient:
             if extra:
                 params.update(extra)
             data = self.api_get(resource, "list", params)
-            rows = data.get("d") or []
+            payload = data.get("d") or []
+            if isinstance(payload, dict):
+                rows = payload.get("data") or payload.get("rows") or payload.get("items") or payload.get("list") or []
+            else:
+                rows = payload
+            if isinstance(rows, dict):
+                rows = [rows]
+            if not isinstance(rows, list):
+                rows = []
             for row in rows:
-                yield row
-            sp = data.get("sp") or {}
+                if isinstance(row, dict):
+                    yield row
+            sp = data.get("sp") or (payload.get("sp") if isinstance(payload, dict) else {}) or {}
             page_count = int(sp.get("pageCount") or 1)
             if page >= page_count or not rows:
                 break

@@ -183,3 +183,18 @@ TOKEN_ENCRYPTION_KEY=put-a-long-random-secret-here-and-never-change-it
 ```
 
 Do not rotate this value casually after users have connected Accurate Online, because stored OAuth tokens are encrypted with it.
+
+## v0.1.5 - Load All Jurnal & Sync Inspector
+
+Jika Neraca kosong, buka **Load All Jurnal** dari sidebar. Halaman ini menampilkan data yang benar-benar sudah masuk ke cache PostgreSQL SUPERTOOLS:
+
+- jumlah Journal Header dari `journal-voucher/list.do`
+- jumlah baris Detail GL dari `journal-voucher/detail.do`
+- jumlah baris dengan Department
+- jumlah baris dengan Project
+- jumlah baris account type `CASH_BANK`
+- jumlah nomor akun jurnal yang belum match ke master GL Account
+
+Tombol **Load All Jurnal** melakukan refresh master GL Account lalu memuat ulang seluruh Journal Voucher yang dikembalikan oleh API. Tabel inspector menampilkan maksimal 1.000 baris terbaru dengan kolom tanggal, nomor jurnal, akun, nama akun, type, debit, kredit, department, project, dan memo.
+
+Jika `Journal Header > 0` tetapi `Detail GL = 0`, parser/detail response adalah titik masalah. Jika `Journal Header = 0` padahal ada transaksi pembelian/kas-bank di AOL, verifikasi apakah endpoint `journal-voucher` pada akun/database tersebut memang mengembalikan jurnal yang dibentuk oleh transaksi modul lain; inspector ini sengaja dibuat agar perbedaannya terlihat sebelum report dihitung.

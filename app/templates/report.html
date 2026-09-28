@@ -7,6 +7,7 @@
   <form method="get" action="/report" class="asof-form"><input type="hidden" name="dimension" value="{{ dimension }}"><input type="hidden" name="db_id" value="{{ database.id }}"><label>As of<input type="date" name="as_of" value="{{ as_of }}"></label><button class="btn btn-primary">Build</button></form><a class="btn btn-accent" href="/export.xlsx?dimension={{ dimension }}&db_id={{ database.id }}&as_of={{ as_of }}">Export Excel</a>
 </div>
 {% if report.trial %}<div class="trial-banner"><div><strong>Trial Preview</strong><span>Hanya Kas/Bank ditampilkan. Pos lain dimasking di server dan diblur sebagai preview.</span></div></div>{% endif %}
+{% if report.source_line_count == 0 %}<div class="danger-banner"><div><strong>Belum ada detail jurnal di cache SUPERTOOLS.</strong><span>Jalankan Load All Jurnal lalu periksa kolom Account, Department, dan Project.</span></div><a class="btn btn-light" href="/journals?db_id={{ database.id }}">Load All Jurnal</a></div>{% elif report.cash_line_count == 0 and report.trial %}<div class="trial-banner"><div><strong>Detail jurnal sudah ada, tetapi belum ditemukan baris akun CASH_BANK.</strong><span>Buka Load All Jurnal untuk mengecek nomor akun dan account type yang tersinkron.</span></div><a class="btn btn-accent" href="/journals?db_id={{ database.id }}">Cek Jurnal</a></div>{% endif %}
 <div class="report-table-wrap">
 <table class="report-table">
   <thead><tr><th>Akun</th><th>Nama Akun</th><th>Type</th>{% for d in report.dimensions %}<th class="num">{{ d }}</th>{% endfor %}<th class="num">TOTAL</th></tr></thead>

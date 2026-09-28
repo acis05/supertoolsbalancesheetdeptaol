@@ -37,6 +37,8 @@ def build_balance_sheet(db: Session, user: User, database: AccurateDatabase, dim
         except ValueError:
             pass
     entries = db.execute(stmt).all()
+    source_line_count = len(entries)
+    cash_line_count = 0
 
     balances = defaultdict(lambda: defaultdict(float))
     earnings = defaultdict(float)
@@ -52,7 +54,9 @@ def build_balance_sheet(db: Session, user: User, database: AccurateDatabase, dim
         else:
             dim = line.department_name or "(UNMAPPED DEPARTMENT)"
         debit = float(line.debit or 0); credit = float(line.credit or 0)
-        typ = acc.account_type
+        typ = (acc.account_type or "").strip().upper()
+        if typ == "CASH_BANK":
+            cash_line_count += 1
         if typ in PNL_REVENUE:
             earnings[dim] += credit - debit
         elif typ in PNL_EXPENSE:
@@ -116,4 +120,5 @@ def build_balance_sheet(db: Session, user: User, database: AccurateDatabase, dim
             totals[d] = {k: None for k in ("ASSET","LIABILITY","EQUITY","PASIVA","CHECK")}
         detail = [x for x in detail if x["account_type"] == "CASH_BANK"]
 
-    return {"dimensions": dims, "sections": sections, "totals": totals, "detail": detail, "trial": trial}
+    return {"dimensions": dims, "sections": sections, "totals": totals, "detail": detail, "trial": trial,
+            "source_line_count": source_line_count, "cash_line_count": cash_line_count}

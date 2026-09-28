@@ -29,6 +29,7 @@
       <div class="database-card"><div class="database-icon">DB</div><div><strong>{{ selected.alias }}</strong><small>ID AOL {{ selected.accurate_db_id }}</small></div><span class="status-dot"></span></div>
       <div class="button-row">
         <form method="post" action="/sync/{{ selected.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-primary">Sync Data</button></form>
+        <a class="btn btn-outline" href="/journals?db_id={{ selected.id }}">Load All Jurnal</a>
         <a class="btn btn-outline" href="/report?dimension=department&db_id={{ selected.id }}">Build Neraca</a>
       </div>
     {% else %}
