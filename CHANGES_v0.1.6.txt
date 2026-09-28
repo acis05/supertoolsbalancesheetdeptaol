@@ -1,0 +1,9 @@
+SUPERTOOLS BALANCE SHEET DEPARTEMENT/PROJECT AOL v0.1.6
+
+- Fix parser Journal Voucher detail response.
+- Case-insensitive AOL JSON reader.
+- Recursive parser for detailJournalVoucher / details / journalLines wrappers.
+- Support account object, debitAmount/creditAmount, primeAmount/baseAmount variants.
+- Retry journal-voucher/detail.do with explicit detailJournalVoucher fields when plain detail response contains no lines.
+- Add API Detail Diagnostic panel on Load All Jurnal page.
+- Diagnostic output is structural/sanitized and does not expose OAuth credentials.

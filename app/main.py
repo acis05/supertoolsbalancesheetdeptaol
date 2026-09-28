@@ -20,8 +20,8 @@ from app.database import Base, engine, get_db, SessionLocal
 from app.models import User, OAuthCredential, AccurateDatabase, SyncJob, GLAccount, JournalHeader, JournalLine
 from app.core.security import hash_password, verify_password, generate_password, encrypt_secret, csrf_token, validate_csrf
 from app.core.auth import current_user, is_admin, can_use_app, is_trial
-from app.services.accurate_client import AccurateOAuthClient, AccurateClient, credential_access_token
-from app.services.sync_service import run_full_sync, run_journal_sync
+from app.services.accurate_client import AccurateOAuthClient, AccurateClient, credential_access_token, client_for_database
+from app.services.sync_service import run_full_sync, run_journal_sync, journal_detail_diagnostic
 from app.reporting.balance_sheet import build_balance_sheet
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -347,7 +347,7 @@ def sync_status(job_id: int, request: Request, db: Session = Depends(get_db)):
 
 
 @app.get("/journals", response_class=HTMLResponse)
-def journals_page(request: Request, db_id: int | None = None, account: str = "", department: str = "", project: str = "", db: Session = Depends(get_db)):
+def journals_page(request: Request, db_id: int | None = None, account: str = "", department: str = "", project: str = "", diagnose: int = 0, db: Session = Depends(get_db)):
     user = require_user(request, db)
     q = select(AccurateDatabase).where(AccurateDatabase.user_id == user.id)
     q = q.where(AccurateDatabase.id == db_id) if db_id else q.where(AccurateDatabase.selected == True)  # noqa: E712
@@ -386,10 +386,25 @@ def journals_page(request: Request, db_id: int | None = None, account: str = "",
         stmt = stmt.where(JournalLine.project_no.ilike(f"%{project}%"))
     rows = db.execute(stmt.limit(1000)).all()
     last_job = db.scalar(select(SyncJob).where(SyncJob.database_id == database.id).order_by(SyncJob.id.desc()).limit(1))
+
+    api_diagnostic = None
+    diagnostic_error = ""
+    if diagnose and user.oauth:
+        try:
+            client = client_for_database(database, user.oauth, db)
+            first_headers = list(client.paged_list("journal-voucher", fields="id,number,transDate,description", page_size=1))
+            if first_headers:
+                api_diagnostic = journal_detail_diagnostic(client, first_headers[0])
+            else:
+                diagnostic_error = "journal-voucher/list.do tidak mengembalikan header."
+        except Exception as exc:
+            diagnostic_error = f"{type(exc).__name__}: {exc}"
+
     return templates.TemplateResponse("journals.html", template_context(
         request, user, database=database, rows=rows, header_count=header_count, line_count=line_count,
         dept_count=dept_count, project_count=project_count, cash_count=cash_count, unknown_accounts=unknown_accounts,
         last_job=last_job, account_filter=account, department_filter=department, project_filter=project,
+        api_diagnostic=api_diagnostic, diagnostic_error=diagnostic_error,
     ))
 
 

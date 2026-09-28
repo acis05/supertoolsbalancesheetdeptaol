@@ -80,20 +80,41 @@ def _upsert_project(db, database_id: int, row: dict):
     obj.suspended = _bool(row.get("suspended"))
 
 
-def _detail_object(response: dict) -> dict:
-    """Return the journal header/detail object across small AOL response-shape variations."""
+def _ci_get(obj: dict, *names, default=None):
+    """Case-insensitive dictionary getter used for AOL response variations."""
+    if not isinstance(obj, dict):
+        return default
+    lookup = {str(k).lower(): v for k, v in obj.items()}
+    for name in names:
+        key = str(name).lower()
+        if key in lookup:
+            return lookup[key]
+    return default
+
+
+def _detail_object(response) -> dict:
+    """Return the most likely journal object from an AOL detail response."""
+    if isinstance(response, str):
+        import json
+        try:
+            response = json.loads(response)
+        except Exception:
+            return {}
     if not isinstance(response, dict):
         return {}
-    payload = response.get("d", response)
-    # Some wrappers return d:[{...}] or d:{data:{...}}.
+    payload = _ci_get(response, "d", default=response)
     if isinstance(payload, list):
-        payload = payload[0] if payload else {}
+        # Some wrappers return d:[{...}]. Prefer the first dict that resembles a journal.
+        choices = [x for x in payload if isinstance(x, dict)]
+        payload = choices[0] if choices else {}
     if isinstance(payload, dict):
-        for key in ("data", "result", "journalVoucher", "journal"):
-            nested = payload.get(key)
-            if isinstance(nested, dict) and (nested.get("id") or nested.get("detailJournalVoucher") or nested.get("number")):
-                payload = nested
-                break
+        for key in ("data", "result", "journalVoucher", "journal", "value", "record"):
+            nested = _ci_get(payload, key)
+            if isinstance(nested, dict):
+                nkeys = {str(k).lower() for k in nested.keys()}
+                if {"id", "number", "detailjournalvoucher", "details"} & nkeys:
+                    payload = nested
+                    break
     return payload if isinstance(payload, dict) else {}
 
 
@@ -101,75 +122,190 @@ def _looks_like_journal_line(obj: dict) -> bool:
     if not isinstance(obj, dict):
         return False
     keys = {str(k).lower() for k in obj.keys()}
-    return ("accountno" in keys or "glaccountno" in keys or "account" in keys) and ("amount" in keys or "debit" in keys or "credit" in keys)
+    accountish = any(k in keys for k in (
+        "accountno", "glaccountno", "account", "glaccount", "accountid", "accountnumber"
+    ))
+    amountish = any(k in keys for k in (
+        "amount", "debit", "credit", "debitamount", "creditamount", "primeamount", "baseamount"
+    )) or any("amount" in k for k in keys)
+    return accountish and amountish
 
 
-def _extract_journal_lines(detail: dict) -> list[dict]:
-    """Find journal detail lines recursively, preferring documented field names.
+def _as_dict_list(value) -> list[dict]:
+    """Convert common list/wrapper/indexed-dict shapes into a list of dicts."""
+    if isinstance(value, list):
+        return [x for x in value if isinstance(x, dict)]
+    if isinstance(value, tuple):
+        return [x for x in value if isinstance(x, dict)]
+    if isinstance(value, dict):
+        # Typical wrappers: {data:[...]}, {rows:[...]}, {0:{...},1:{...}}
+        for key in ("d", "data", "rows", "list", "items", "content", "details", "detail"):
+            nested = _ci_get(value, key)
+            rows = _as_dict_list(nested) if nested is not value else []
+            if rows:
+                return rows
+        dict_values = [v for v in value.values() if isinstance(v, dict)]
+        if dict_values and all(_looks_like_journal_line(v) for v in dict_values):
+            return dict_values
+    return []
 
-    AOL documents detailJournalVoucher[], but this defensive reader also accepts
-    wrappers and minor naming differences so a successful API response does not
-    silently become zero local rows.
+
+def _extract_journal_lines(detail) -> list[dict]:
+    """Recursively find Journal Voucher detail rows in AOL JSON.
+
+    The public docs name the request-side array `detailJournalVoucher[n]`.  AOL
+    deployments can serialize response wrappers differently, so this reader is
+    intentionally tolerant while still requiring both an account and an amount.
     """
-    if not isinstance(detail, dict):
+    if not isinstance(detail, (dict, list)):
         return []
-    preferred = (
-        "detailJournalVoucher", "detailJournalVoucherList", "details",
-        "detail", "journalDetails", "journalVoucherDetails",
-    )
-    for key in preferred:
-        value = detail.get(key)
-        if isinstance(value, list) and value and all(isinstance(x, dict) for x in value):
-            if any(_looks_like_journal_line(x) for x in value):
-                return value
-        if isinstance(value, dict):
-            # Some serializers wrap lists as {d:[...]}, {data:[...]}, etc.
-            for nested_key in ("d", "data", "rows", "list", "items"):
-                nested = value.get(nested_key)
-                if isinstance(nested, list) and any(isinstance(x, dict) and _looks_like_journal_line(x) for x in nested):
-                    return nested
 
-    found: list[dict] = []
-    def walk(value):
+    preferred_names = {
+        "detailjournalvoucher", "detailjournalvoucherlist", "details", "detail",
+        "journaldetails", "journalvoucherdetails", "detailtrans", "detailtransaction",
+        "journalentries", "entries", "lines", "journallines",
+    }
+    candidates: list[dict] = []
+
+    def walk(value, parent_key=""):
         if isinstance(value, dict):
             if _looks_like_journal_line(value):
-                found.append(value)
+                candidates.append(value)
                 return
-            for child in value.values():
-                walk(child)
+            for k, child in value.items():
+                lk = str(k).lower()
+                if lk in preferred_names or "detailjournal" in lk or "journalline" in lk:
+                    rows = _as_dict_list(child)
+                    for row in rows:
+                        if _looks_like_journal_line(row):
+                            candidates.append(row)
+                    # Continue walking too, because wrappers may be one level deeper.
+                walk(child, lk)
         elif isinstance(value, list):
             for child in value:
-                walk(child)
+                walk(child, parent_key)
+
     walk(detail)
-    # De-duplicate by object identity/content-ish key.
+    import json
     out=[]; seen=set()
-    for i,line in enumerate(found):
-        key=(line.get("id"), line.get("accountNo") or line.get("glAccountNo"), line.get("amount"), line.get("amountType"), i if line.get("id") is None else 0)
-        if key in seen: continue
+    for line in candidates:
+        lid=_ci_get(line,"id","detailId","lineId")
+        if lid not in (None, ""):
+            key=("id", str(lid))
+        else:
+            try:
+                key=("json", json.dumps(line, sort_keys=True, ensure_ascii=False, default=str))
+            except Exception:
+                key=("repr", repr(line))
+        if key in seen:
+            continue
         seen.add(key); out.append(line)
     return out
 
 
 def _line_account_no(line: dict) -> str:
-    value = line.get("accountNo") or line.get("glAccountNo") or line.get("account") or ""
+    value = _ci_get(line, "accountNo", "glAccountNo", "accountNumber", "account", "glAccount", default="")
     if isinstance(value, dict):
-        value = value.get("no") or value.get("accountNo") or ""
+        value = _ci_get(value, "no", "accountNo", "number", "code", default="")
     return _text(value)
 
 
 def _line_department(line: dict) -> str:
-    value = line.get("departmentName") or line.get("department") or ""
+    value = _ci_get(line, "departmentName", "department", "departmentNo", default="")
     if isinstance(value, dict):
-        value = value.get("name") or value.get("description") or ""
+        value = _ci_get(value, "name", "description", "no", "code", default="")
     return _text(value)
 
 
 def _line_project(line: dict) -> str:
-    value = line.get("projectNo") or line.get("projectNumber") or line.get("project") or ""
+    value = _ci_get(line, "projectNo", "projectNumber", "projectName", "project", default="")
     if isinstance(value, dict):
-        value = value.get("no") or value.get("projectNo") or value.get("name") or ""
+        value = _ci_get(value, "no", "projectNo", "number", "name", "code", default="")
     return _text(value)
 
+
+def _line_amount_and_type(line: dict) -> tuple[Decimal, str]:
+    raw_amount = _ci_get(line, "amount", "baseAmount", "primeAmount")
+    debit_raw = _ci_get(line, "debit", "debitAmount")
+    credit_raw = _ci_get(line, "credit", "creditAmount")
+    amount_type = _text(_ci_get(line, "amountType", "debitCredit", "dc", default="")).upper()
+
+    if debit_raw not in (None, "") and _decimal(debit_raw) != 0:
+        return abs(_decimal(debit_raw)), "DEBIT"
+    if credit_raw not in (None, "") and _decimal(credit_raw) != 0:
+        return abs(_decimal(credit_raw)), "CREDIT"
+
+    signed = _decimal(raw_amount)
+    if amount_type in ("D", "DR"):
+        amount_type = "DEBIT"
+    elif amount_type in ("C", "CR"):
+        amount_type = "CREDIT"
+    if amount_type not in ("DEBIT", "CREDIT"):
+        # Accurate request docs expose amountType, but keep a signed fallback.
+        amount_type = "CREDIT" if signed < 0 else "DEBIT"
+    return abs(signed), amount_type
+
+
+def _fetch_journal_detail(client, header: dict) -> tuple[dict, dict, list[dict], str]:
+    """Fetch detail using conservative + explicit-field strategies.
+
+    Returns (raw_response, normalized_detail, parsed_lines, strategy).
+    """
+    hid = _ci_get(header, "id")
+    if hid in (None, ""):
+        return {}, {}, [], "missing-id"
+
+    attempts = [
+        ("plain-id", {"id": hid}),
+        ("explicit-detail-fields", {
+            "id": hid,
+            "fields": "id,number,transDate,description,branchName,lastUpdate,detailJournalVoucher",
+        }),
+    ]
+    last_raw = {}
+    for label, params in attempts:
+        try:
+            raw = client.api_get("journal-voucher", "detail", params)
+        except Exception:
+            # `fields` support can differ; the plain call remains authoritative.
+            if label == "plain-id":
+                raise
+            continue
+        last_raw = raw
+        detail = _detail_object(raw)
+        lines = _extract_journal_lines(detail)
+        if lines:
+            return raw, detail, lines, label
+    detail = _detail_object(last_raw)
+    # Last fallback: list response itself occasionally contains expanded detail.
+    lines = _extract_journal_lines(header)
+    if lines:
+        return last_raw, detail or header, lines, "list-expanded"
+    return last_raw, detail, [], attempts[0][0]
+
+
+def journal_detail_diagnostic(client, header: dict) -> dict:
+    """Safe diagnostic summary + raw AOL JSON for one journal header."""
+    raw, detail, lines, strategy = _fetch_journal_detail(client, header)
+    def shape(value, depth=0):
+        if depth > 4:
+            return type(value).__name__
+        if isinstance(value, dict):
+            return {str(k): shape(v, depth+1) for k,v in list(value.items())[:80]}
+        if isinstance(value, list):
+            return [shape(v, depth+1) for v in value[:3]] + ([f"... {len(value)-3} more"] if len(value)>3 else [])
+        if value is None:
+            return None
+        s=str(value)
+        return s if len(s) <= 160 else s[:157] + "..."
+    return {
+        "header": {k: header.get(k) for k in ("id","number","transDate","description")},
+        "strategy": strategy,
+        "detail_top_keys": list(detail.keys()) if isinstance(detail, dict) else [],
+        "parsed_line_count": len(lines),
+        "parsed_line_sample": lines[:2],
+        "raw_shape": shape(raw),
+    }
 
 def sync_masters(db, dbrow: AccurateDatabase, client, job: SyncJob | None = None):
     if job:
@@ -210,8 +346,7 @@ def sync_all_journals(db, dbrow: AccurateDatabase, client, job: SyncJob | None =
         if raw_id in (None, ""):
             continue
         hid = int(raw_id)
-        detail_resp = client.api_get("journal-voucher", "detail", {"id": hid})
-        detail = _detail_object(detail_resp)
+        detail_resp, detail, lines, detail_strategy = _fetch_journal_detail(client, h)
 
         header = db.scalar(select(JournalHeader).where(JournalHeader.database_id == dbrow.id, JournalHeader.accurate_id == hid))
         if not header:
@@ -225,26 +360,14 @@ def sync_all_journals(db, dbrow: AccurateDatabase, client, job: SyncJob | None =
         db.flush()
 
         db.execute(delete(JournalLine).where(JournalLine.database_id == dbrow.id, JournalLine.journal_accurate_id == hid))
-        lines = _extract_journal_lines(detail)
         if not lines:
             zero_detail_headers += 1
         for line_index, line in enumerate(lines, start=1):
-            amount = abs(_decimal(line.get("amount") if line.get("amount") is not None else (line.get("debit") or line.get("credit") or 0)))
-            amount_type = _text(line.get("amountType")).upper()
-            if not amount_type:
-                # Fallback for response variations that expose debit/credit separately.
-                if _decimal(line.get("debit")) != 0:
-                    amount_type = "DEBIT"; amount = abs(_decimal(line.get("debit")))
-                elif _decimal(line.get("credit")) != 0:
-                    amount_type = "CREDIT"; amount = abs(_decimal(line.get("credit")))
-                elif _decimal(line.get("amount")) < 0:
-                    amount_type = "CREDIT"
-                else:
-                    amount_type = "DEBIT"
+            amount, amount_type = _line_amount_and_type(line)
             debit = amount if amount_type == "DEBIT" else Decimal("0")
             credit = amount if amount_type == "CREDIT" else Decimal("0")
             try:
-                line_id = int(line.get("id") or line_index)
+                line_id = int(_ci_get(line, "id", "detailId", "lineId", default=line_index) or line_index)
             except Exception:
                 line_id = line_index
             dept = _line_department(line)
@@ -261,7 +384,7 @@ def sync_all_journals(db, dbrow: AccurateDatabase, client, job: SyncJob | None =
                 credit=credit,
                 department_name=dept,
                 project_no=project,
-                memo=_text(line.get("memo") or line.get("description")),
+                memo=_text(_ci_get(line, "memo", "description", "notes", default="")),
             ))
             total_lines += 1
             if dept: with_department += 1
@@ -272,7 +395,7 @@ def sync_all_journals(db, dbrow: AccurateDatabase, client, job: SyncJob | None =
         if job:
             span=max(progress_end-progress_start,1)
             job.progress = min(progress_start + int((idx / total) * span), progress_end)
-            job.message = f"Load All Jurnal {idx:,}/{len(headers):,} • detail lines {total_lines:,}"
+            job.message = f"Load All Jurnal {idx:,}/{len(headers):,} • detail lines {total_lines:,} • parser {detail_strategy}"
             db.commit()
 
     db.commit()

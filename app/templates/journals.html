@@ -4,8 +4,27 @@
 {% block content %}
 <div class="journal-hero">
   <div><span class="eyebrow light">ACCURATE ONLINE • READ ONLY</span><h1>Load All Jurnal</h1><p>Tarik ulang Journal Voucher dan cek langsung akun, debit/kredit, Department, serta Project yang benar-benar tersimpan di SUPERTOOLS.</p></div>
-  <form method="post" action="/journals/load-all"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="database_id" value="{{ database.id }}"><button class="btn btn-accent journal-load-btn">↻ Load All Jurnal</button></form>
+  <div class="button-row">
+    <a class="btn btn-outline" href="/journals?db_id={{ database.id }}&diagnose=1">API Detail Diagnostic</a>
+    <form method="post" action="/journals/load-all"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="database_id" value="{{ database.id }}"><button class="btn btn-accent journal-load-btn">↻ Load All Jurnal</button></form>
+  </div>
 </div>
+
+
+{% if diagnostic_error %}
+<div class="danger-banner"><div><strong>API Diagnostic gagal.</strong><span>{{ diagnostic_error }}</span></div></div>
+{% endif %}
+{% if api_diagnostic %}
+<div class="panel api-diagnostic-panel">
+  <div class="panel-head"><div><span class="eyebrow">RAW AOL DIAGNOSTIC</span><h3>Response journal-voucher/detail.do</h3><p class="muted">Tidak menyimpan token/credential. Panel ini hanya menampilkan struktur response jurnal pertama untuk memastikan parser cocok dengan API database Anda.</p></div></div>
+  <div class="diagnostic-grid">
+    <div><span>Strategy</span><strong>{{ api_diagnostic.strategy }}</strong></div>
+    <div><span>Parsed Lines</span><strong>{{ api_diagnostic.parsed_line_count }}</strong></div>
+    <div class="wide"><span>Detail Top Keys</span><code>{{ api_diagnostic.detail_top_keys | join(', ') }}</code></div>
+  </div>
+  <details open><summary>Raw response shape (sanitized)</summary><pre class="json-preview">{{ api_diagnostic | tojson(indent=2) }}</pre></details>
+</div>
+{% endif %}
 
 {% if last_job %}
 <div class="panel journal-job">

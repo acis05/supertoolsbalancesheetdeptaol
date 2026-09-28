@@ -198,3 +198,14 @@ Jika Neraca kosong, buka **Load All Jurnal** dari sidebar. Halaman ini menampilk
 Tombol **Load All Jurnal** melakukan refresh master GL Account lalu memuat ulang seluruh Journal Voucher yang dikembalikan oleh API. Tabel inspector menampilkan maksimal 1.000 baris terbaru dengan kolom tanggal, nomor jurnal, akun, nama akun, type, debit, kredit, department, project, dan memo.
 
 Jika `Journal Header > 0` tetapi `Detail GL = 0`, parser/detail response adalah titik masalah. Jika `Journal Header = 0` padahal ada transaksi pembelian/kas-bank di AOL, verifikasi apakah endpoint `journal-voucher` pada akun/database tersebut memang mengembalikan jurnal yang dibentuk oleh transaksi modul lain; inspector ini sengaja dibuat agar perbedaannya terlihat sebelum report dihitung.
+
+## v0.1.6 - Journal Detail Loader Fix + Raw API Diagnostic
+
+Perubahan:
+- parser response `journal-voucher/detail.do` dibuat case-insensitive dan recursive;
+- support wrapper/list/indexed-dict dan variasi field account/debit/credit;
+- bila detail biasa kosong, aplikasi mencoba ulang `detail.do` dengan field `detailJournalVoucher` secara eksplisit;
+- `Load All Jurnal` menampilkan strategi parser pada progress;
+- tombol **API Detail Diagnostic** menampilkan struktur response asli jurnal pertama tanpa token/credential, agar variasi response Accurate Online dapat didiagnosis langsung dari UI.
+
+Jika `Journal Header > 0` tetapi `Detail GL = 0`, klik **API Detail Diagnostic** dan kirim bagian `Detail Top Keys` + `Raw response shape` untuk penyesuaian parser berikutnya.
