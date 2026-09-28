@@ -21,3 +21,12 @@
 - [ ] Test OAuth AOL → pilih DB → sync → Neraca Department/Project.
 - [ ] Verify trial hanya melihat CASH_BANK.
 - [ ] Activate user dari Admin → verify full balance sheet + max 5 DB.
+
+## Jika muncul `Invalid value for --port: $PORT`
+
+1. Railway → service aplikasi → **Settings / Deploy**.
+2. Hapus **Custom Start Command** jika berisi `uvicorn ... --port $PORT`.
+3. Redeploy agar Railway memakai `Dockerfile CMD`.
+4. Jika ingin memakai custom command, gunakan:
+   `sh -c 'exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}'`
+5. Cek `/health` setelah deploy.

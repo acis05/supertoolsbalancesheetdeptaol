@@ -1,6 +1,6 @@
 # SUPERTOOLS BALANCE SHEET DEPARTEMENT/PROJECT AOL
 
-Starter source v0.1.0 untuk web app SaaS **Accurate Online Edition**, siap dipush ke GitHub dan dideploy ke Railway.
+Starter source v0.1.1 untuk web app SaaS **Accurate Online Edition**, siap dipush ke GitHub dan dideploy ke Railway.
 
 ## Fitur yang sudah disiapkan
 
@@ -156,3 +156,15 @@ requirements.txt
 ## Yang perlu dites dengan akun AOL live
 
 Dokumentasi Anda sudah menunjukkan `detailJournalVoucher` memiliki `accountNo`, `amount`, `amountType`, `departmentName`, dan `projectNo`. Yang tetap perlu dites pada database AOL nyata adalah bentuk response aktual `detail.do` dan apakah endpoint Journal Voucher yang tersedia pada akun Anda benar-benar merepresentasikan seluruh posting jurnal transaksi yang ingin dimasukkan ke Neraca. Parser dibuat toleran terhadap beberapa nama container detail, tetapi test live tetap diperlukan sebelum release komersial.
+
+## Railway PORT fix (v0.1.1)
+
+Railway memberikan port runtime melalui environment variable `PORT`. Pada versi sebelumnya, `railway.toml` menggunakan `--port $PORT` sebagai Start Command langsung, sehingga pada beberapa deploy Railway nilai `$PORT` diteruskan sebagai teks literal dan Uvicorn gagal dengan `Invalid value for --port: $PORT`.
+
+v0.1.1 menghapus override `startCommand` dari `railway.toml` dan membiarkan Dockerfile menjalankan:
+
+```sh
+sh -c "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
+```
+
+Jika Railway Service Anda pernah memiliki **Custom Start Command** manual, kosongkan/hapus field tersebut agar Dockerfile `CMD` dipakai. Alternatifnya isi manual dengan command shell di atas.

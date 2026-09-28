@@ -1,0 +1,7 @@
+SUPERTOOLS BALANCE SHEET DEPARTEMENT/PROJECT AOL v0.1.1
+
+Railway deployment fix:
+- Removed railway.toml startCommand that passed literal $PORT to uvicorn.
+- Dockerfile now owns process startup and expands ${PORT:-8000} via sh -c.
+- Procfile updated with the same shell-safe command.
+- Added deployment troubleshooting notes.
