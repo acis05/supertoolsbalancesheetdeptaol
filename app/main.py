@@ -25,6 +25,7 @@ from app.services.accurate_client import AccurateOAuthClient, AccurateClient, cr
 from app.services.sync_service import run_full_sync, run_journal_sync, journal_detail_diagnostic
 from app.reporting.balance_sheet import build_balance_sheet
 from app.reporting.profit_loss import build_profit_loss
+from app.reporting.pdf_export import balance_sheet_pdf, profit_loss_pdf
 
 BASE_DIR = Path(__file__).resolve().parent
 app = FastAPI(title=settings.app_name)
@@ -534,6 +535,27 @@ def export_xlsx(request: Request, dimension: str = "department", as_of: str = ""
     return StreamingResponse(bio, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition":f'attachment; filename="{filename}"'})
 
 
+@app.get("/report.pdf")
+def report_pdf(request: Request, dimension: str = "department", as_of: str = "", db_id: int | None = None, db: Session = Depends(get_db)):
+    user = require_user(request, db)
+    database = _selected_database(db, user, db_id)
+    if not database:
+        raise HTTPException(404, "Database not selected")
+    fctx = _dimension_filter_context(db, database, request)
+    if dimension == "department": fctx["selected_projects"] = []
+    elif dimension == "project": fctx["selected_departments"] = []
+    data = build_balance_sheet(
+        db, user, database, dimension=dimension, as_of=as_of or None,
+        department_filters=fctx["selected_departments"], project_filters=fctx["selected_projects"],
+    )
+    bio = balance_sheet_pdf(
+        settings.app_name, database.alias, data, dimension, as_of,
+        fctx["selected_departments"], fctx["selected_projects"],
+    )
+    filename=f"SUPERTOOLS_BS_{database.alias.replace(' ','_')}_{dimension}.pdf"
+    return StreamingResponse(bio, media_type="application/pdf", headers={"Content-Disposition":f'attachment; filename="{filename}"'})
+
+
 @app.get("/profit-loss", response_class=HTMLResponse)
 def profit_loss(request: Request, dimension: str = "department", date_from: str = "", date_to: str = "", db_id: int | None = None, db: Session = Depends(get_db)):
     user = require_user(request, db)
@@ -599,6 +621,27 @@ def profit_loss_xlsx(request: Request, dimension: str = "department", date_from:
     bio=BytesIO(); wb.save(bio); bio.seek(0)
     filename=f"SUPERTOOLS_PL_{database.alias.replace(' ','_')}_{dimension}.xlsx"
     return StreamingResponse(bio,media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",headers={"Content-Disposition":f'attachment; filename="{filename}"'})
+
+
+@app.get("/profit-loss.pdf")
+def profit_loss_pdf_route(request: Request, dimension: str = "department", date_from: str = "", date_to: str = "", db_id: int | None = None, db: Session = Depends(get_db)):
+    user = require_user(request, db)
+    database = _selected_database(db, user, db_id)
+    if not database:
+        raise HTTPException(404, "Database not selected")
+    fctx = _dimension_filter_context(db, database, request)
+    if dimension == "department": fctx["selected_projects"] = []
+    elif dimension == "project": fctx["selected_departments"] = []
+    data = build_profit_loss(
+        db, user, database, dimension=dimension, date_from=date_from or None, date_to=date_to or None,
+        department_filters=fctx["selected_departments"], project_filters=fctx["selected_projects"],
+    )
+    bio = profit_loss_pdf(
+        settings.app_name, database.alias, data, dimension, date_from, date_to,
+        fctx["selected_departments"], fctx["selected_projects"],
+    )
+    filename=f"SUPERTOOLS_PL_{database.alias.replace(' ','_')}_{dimension}.pdf"
+    return StreamingResponse(bio, media_type="application/pdf", headers={"Content-Disposition":f'attachment; filename="{filename}"'})
 
 
 # ---------- Admin ----------

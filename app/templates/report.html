@@ -44,6 +44,7 @@
       <button class="btn btn-primary">Build</button>
     </form>
     <a class="btn btn-accent" href="/export.xlsx?dimension={{ dimension }}&db_id={{ database.id }}&as_of={{ as_of }}{% if filter_query %}&{{ filter_query }}{% endif %}">Export Excel</a>
+    <a class="btn btn-light pdf-btn" href="/report.pdf?dimension={{ dimension }}&db_id={{ database.id }}&as_of={{ as_of }}{% if filter_query %}&{{ filter_query }}{% endif %}">Export PDF</a>
   </div>
 </div>
 

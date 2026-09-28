@@ -1,0 +1,16 @@
+SUPERTOOLS BALANCE SHEET DEPARTEMENT/PROJECT AOL v0.1.8
+
+FIXES
+- Fix Internal Server Error pada halaman Laba Rugi untuk user ACTIVE.
+- Penyebab: template Jinja mengakses key dictionary `values` dengan dot notation (`row.values`), sehingga terbaca sebagai method built-in `dict.values`, bukan data nominal. Sekarang seluruh akses menggunakan bracket notation `row['values']`.
+
+PDF
+- Tambah native Export PDF pada Neraca dan Laba Rugi.
+- PDF dibangun dari report object yang sama dengan tampilan layar, sehingga filter tanggal, Department, Project, subtotal, total dan angka menggunakan sumber data yang sama.
+- Neraca PDF: subtotal Aset Lancar, Aset Tetap/Tidak Lancar, Liabilitas Jangka Pendek, Liabilitas Jangka Panjang, Ekuitas, Total Aktiva, Total Pasiva, Balance Check.
+- Laba Rugi PDF: Pendapatan, HPP, Laba Kotor, Beban Operasional, Laba Usaha, Pendapatan/Beban Lain, Laba Bersih.
+- Trial masking tetap diterapkan server-side juga pada PDF.
+
+DEPLOY
+- Tambah dependency reportlab==4.4.4.
+- Tidak ada perubahan schema database.

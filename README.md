@@ -1,3 +1,11 @@
+# v0.1.8 - Profit/Loss 500 Fix + Native PDF Export
+
+- Fix Internal Server Error pada `/profit-loss` untuk akun aktif.
+- Export PDF Neraca dan Laba Rugi memakai report object yang sama dengan tampilan layar.
+- PDF mengikuti filter Department, Project, kombinasi dimensi, tanggal/as-of, subtotal, total dan trial masking.
+- Tambah dependency `reportlab==4.4.4`.
+- Tidak ada perubahan schema PostgreSQL.
+
 # SUPERTOOLS BALANCE SHEET DEPARTEMENT/PROJECT AOL
 
 Starter source v0.1.7 untuk web app SaaS **Accurate Online Edition**, siap dipush ke GitHub dan dideploy ke Railway.
