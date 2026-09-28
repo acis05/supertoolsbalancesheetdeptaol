@@ -32,9 +32,9 @@
 5. Cek `/health` setelah deploy.
 
 
-## v0.1.3 — FIX FINAL PORT RAILWAY
+## v0.1.4 — FIX FINAL PORT RAILWAY
 
-Source v0.1.3 **tidak lagi mengirim `$PORT` ke Uvicorn melalui command line**.
+Source v0.1.4 **tidak lagi mengirim `$PORT` ke Uvicorn melalui command line**.
 Server dijalankan hanya dengan:
 
 ```text
@@ -58,3 +58,13 @@ Lalu lakukan salah satu:
 - ganti menjadi `python run_server.py`
 
 Jangan gunakan `uvicorn ... --port $PORT`. Setelah itu pilih **Redeploy latest commit**.
+
+## OAuth encryption (v0.1.4)
+The previous `Fernet key must be 32 url-safe base64-encoded bytes` failure is fixed in code.
+Set a stable random value in Railway, for example:
+
+```env
+TOKEN_ENCRYPTION_KEY=your-long-random-production-secret
+```
+
+It no longer needs to be manually Fernet/base64 formatted. Keep this value unchanged after users connect AOL.

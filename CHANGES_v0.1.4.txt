@@ -1,0 +1,21 @@
+SUPERTOOLS BALANCE SHEET DEPARTEMENT/PROJECT AOL v0.1.4
+
+FIX: OAuth callback failed with:
+  Fernet key must be 32 url-safe base64-encoded bytes.
+
+Root cause:
+- Railway TOKEN_ENCRYPTION_KEY was a normal secret/string, while cryptography.Fernet
+  requires a very specific 32-byte url-safe base64 key.
+
+Changes:
+- Accept a proper Fernet key unchanged.
+- If TOKEN_ENCRYPTION_KEY is any normal random string, deterministically SHA-256 it
+  and convert it into a valid Fernet key.
+- If TOKEN_ENCRYPTION_KEY is empty, derive the encryption key from SECRET_KEY.
+- OAuth token encryption can therefore no longer crash solely because the environment
+  variable is not already Fernet formatted.
+- Clearer message when the encryption secret changes after tokens were already stored.
+
+Deployment note:
+- Keep TOKEN_ENCRYPTION_KEY stable after production users connect AOL.
+- If it is changed, existing users must reconnect Accurate Online.
