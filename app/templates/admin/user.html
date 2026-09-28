@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% set page_title = "Manage User" %}
+{% set page_subtitle = target.email %}
+{% block content %}
+<div class="profile-hero"><div class="avatar large">{{ (target.full_name or target.email)[0]|upper }}</div><div><h2>{{ target.full_name or '-' }}</h2><p>{{ target.email }}</p></div><span class="tag {{ target.status|lower }} big">{{ target.status }}</span></div>
+<div class="admin-actions-grid">
+  <div class="panel"><h3>Aktivasi Langganan</h3><p class="muted">User ACTIVE dapat memilih maksimal 5 database.</p><form method="post" action="/admin/users/{{ target.id }}/activate" class="form-inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="number" name="days" value="30" min="1"><button class="btn btn-primary">Activate</button></form></div>
+  <div class="panel"><h3>Extend Trial</h3><p class="muted">Tambahkan periode trial dan kembali ke status TRIAL.</p><form method="post" action="/admin/users/{{ target.id }}/trial-extend" class="form-inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="number" name="days" value="7" min="1"><button class="btn btn-outline">Extend</button></form></div>
+  <div class="panel"><h3>Suspend User</h3><p class="muted">Login tetap ditolak sampai status diaktifkan kembali.</p><form method="post" action="/admin/users/{{ target.id }}/suspend"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-danger">Suspend</button></form></div>
+  <div class="panel"><h3>Reset Password</h3><p class="muted">Generate temporary password. Salin dari notifikasi setelah reset.</p><form method="post" action="/admin/users/{{ target.id }}/reset-password"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-accent">Reset Password</button></form></div>
+</div>
+<div class="panel"><div class="panel-head"><h3>Database User ({{ databases|length }}/{{ 5 if target.status=='ACTIVE' else 1 }})</h3></div><div class="list-stack">{% for d in databases %}<div class="db-row"><div><strong>{{ d.alias }}</strong><small>AOL ID {{ d.accurate_db_id }} • Last sync {{ d.last_sync_at.strftime('%d/%m/%Y %H:%M') if d.last_sync_at else '-' }}</small></div><span class="tag {{ 'success' if d.selected else '' }}">{{ 'SELECTED' if d.selected else 'AVAILABLE' }}</span></div>{% else %}<div class="empty-state compact">Belum ada database.</div>{% endfor %}</div></div>
+{% endblock %}

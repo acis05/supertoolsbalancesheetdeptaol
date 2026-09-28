@@ -1,0 +1,23 @@
+# Railway Deploy Checklist
+
+- [ ] Push repository ke GitHub.
+- [ ] Railway: New Project → Deploy from GitHub Repo.
+- [ ] Tambahkan PostgreSQL service.
+- [ ] Set `DATABASE_URL=${{Postgres.DATABASE_URL}}`.
+- [ ] Set `APP_ENV=production`.
+- [ ] Set `APP_BASE_URL=https://<railway-domain>`.
+- [ ] Set `COOKIE_SECURE=true`.
+- [ ] Generate dan set `SECRET_KEY`.
+- [ ] Generate dan set `TOKEN_ENCRYPTION_KEY`.
+- [ ] Set `ADMIN_EMAIL` dan `ADMIN_PASSWORD`.
+- [ ] Set `AOL_CLIENT_ID` dan `AOL_CLIENT_SECRET`.
+- [ ] Set `AOL_REDIRECT_URI=https://<railway-domain>/accurate/oauth/callback`.
+- [ ] Set `AOL_SCOPES=glaccount_view department_view project_view journal_voucher_view`.
+- [ ] Daftarkan URL callback yang sama di Area Developer Accurate Online.
+- [ ] Generate public domain Railway.
+- [ ] Deploy ulang.
+- [ ] Login admin dan ganti password admin bila perlu.
+- [ ] Buat akun trial test.
+- [ ] Test OAuth AOL → pilih DB → sync → Neraca Department/Project.
+- [ ] Verify trial hanya melihat CASH_BANK.
+- [ ] Activate user dari Admin → verify full balance sheet + max 5 DB.

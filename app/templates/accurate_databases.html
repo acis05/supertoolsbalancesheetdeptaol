@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% set page_title = "Database Accurate Online" %}
+{% set page_subtitle = "Pilih database AOL yang akan dianalisis" %}
+{% block content %}
+<div class="toolbar-card"><div><span class="eyebrow">DATABASE LIMIT</span><strong>{{ saved|length }} / {{ max_databases }}</strong></div><a class="btn btn-outline" href="/accurate/connect">Reconnect OAuth</a></div>
+<div class="grid-2 database-layout">
+  <div class="panel"><div class="panel-head"><h3>Database tersedia di Accurate Online</h3></div>
+    <div class="list-stack">
+    {% for d in available %}
+      <div class="db-row"><div><strong>{{ d.alias }}</strong><small>ID {{ d.id }} • {{ 'Trial AOL' if d.trial else 'Licensed AOL' }}</small></div>
+      {% if d.id in saved_ids %}<span class="tag success">Added</span>{% else %}
+      <form method="post" action="/accurate/databases/add"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="accurate_db_id" value="{{ d.id }}"><input type="hidden" name="alias" value="{{ d.alias }}"><button class="btn btn-primary btn-sm">+ Add</button></form>{% endif %}</div>
+    {% else %}<div class="empty-state compact">Tidak ada database atau OAuth perlu diulang.</div>{% endfor %}
+    </div>
+  </div>
+  <div class="panel"><div class="panel-head"><h3>Database di SUPERTOOLS</h3></div>
+    <div class="list-stack">
+    {% for d in saved %}
+      <div class="db-row"><div><strong>{{ d.alias }}</strong><small>{{ 'Selected' if d.selected else 'Available' }} • Last sync {{ d.last_sync_at.strftime('%d/%m/%Y %H:%M') if d.last_sync_at else '-' }}</small></div><div class="inline-actions">
+      {% if not d.selected %}<form method="post" action="/accurate/databases/{{ d.id }}/select"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-outline btn-sm">Pilih</button></form>{% endif %}
+      <form method="post" action="/accurate/databases/{{ d.id }}/remove" onsubmit="return confirm('Hapus database dari SUPERTOOLS? Data Accurate tidak dihapus.')"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-danger-soft btn-sm">Remove</button></form></div></div>
+    {% else %}<div class="empty-state compact">Belum ada database ditambahkan.</div>{% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

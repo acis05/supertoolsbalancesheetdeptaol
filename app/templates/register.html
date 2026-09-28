@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block guest %}
+<div class="auth-page">
+  <div class="auth-visual trial-visual">
+    <div class="auth-logo">7</div>
+    <div class="auth-kicker">FREE TRIAL</div>
+    <h1>{{ trial_days }} HARI<br>COBA SUPERTOOLS</h1>
+    <p>Hubungkan Accurate Online dan lihat bagaimana Neraca per Department / Project bekerja.</p>
+    <div class="trial-notice">Saat trial, akun Kas/Bank terbuka penuh. Pos neraca lainnya ditampilkan sebagai preview tersamar.</div>
+  </div>
+  <div class="auth-panel">
+    <div class="auth-card">
+      <span class="eyebrow">CREATE ACCOUNT</span>
+      <h2>Mulai trial {{ trial_days }} hari</h2>
+      <form method="post" action="/register" class="form-stack">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <label>Nama<input name="full_name" required placeholder="Nama Anda"></label>
+        <label>Email<input type="email" name="email" required placeholder="nama@perusahaan.com"></label>
+        <label>Password<input type="password" name="password" minlength="8" required placeholder="Minimal 8 karakter"></label>
+        <button class="btn btn-accent btn-lg" type="submit">Aktifkan Trial</button>
+      </form>
+      <p class="center muted">Sudah punya akun? <a href="/login">Masuk</a></p>
+    </div>
+  </div>
+</div>
+{% endblock %}

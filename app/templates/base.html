@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{ app_name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}">
+</head>
+<body class="app-bg">
+{% if user %}
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand-block">
+      <div class="brand-icon">▥</div>
+      <div><div class="brand-kicker">SUPERTOOLS</div><div class="brand-title">BALANCE SHEET</div><div class="brand-sub">DEPARTEMENT / PROJECT AOL</div></div>
+    </div>
+    <div class="readonly-badge">🔒 READ ONLY ACCURATE ONLINE</div>
+    {% if user.role == 'ADMIN' %}
+      <nav class="nav-list">
+        <a href="/admin" class="nav-link">⌂ <span>Admin Dashboard</span></a>
+        <a href="/account" class="nav-link">⚙ <span>Account</span></a>
+      </nav>
+    {% else %}
+      <nav class="nav-list">
+        <a href="/dashboard" class="nav-link">⌂ <span>Dashboard</span></a>
+        <a href="/report?dimension=department" class="nav-link">▤ <span>Neraca Department</span></a>
+        <a href="/report?dimension=project" class="nav-link">▥ <span>Neraca Project</span></a>
+        <a href="/report?dimension=project_department" class="nav-link">▦ <span>Project + Department</span></a>
+        <a href="/accurate/databases" class="nav-link">◫ <span>Database AOL</span></a>
+        <a href="/account" class="nav-link">⚙ <span>Account</span></a>
+      </nav>
+    {% endif %}
+    <div class="sidebar-spacer"></div>
+    <div class="plan-chip {{ user.status|lower }}">{{ user.status }}</div>
+    <form method="post" action="/logout" class="sidebar-logout">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="btn btn-ghost-light" type="submit">Keluar</button>
+    </form>
+  </aside>
+  <main class="main-area">
+    <header class="topbar">
+      <div><div class="topbar-title">{{ page_title or 'SUPERTOOLS AOL' }}</div><div class="topbar-sub">{{ page_subtitle or 'Balance Sheet by Department & Project' }}</div></div>
+      <div class="topbar-user"><div class="avatar">{{ (user.full_name or user.email)[0]|upper }}</div><div><strong>{{ user.full_name or user.email }}</strong><small>{{ user.email }}</small></div></div>
+    </header>
+    <section class="content-wrap">
+      {% for f in flashes %}<div class="flash {{ f.kind }}">{{ f.message }}</div>{% endfor %}
+      {% block content %}{% endblock %}
+    </section>
+  </main>
+</div>
+{% else %}
+  {% for f in flashes %}<div class="floating-flash flash {{ f.kind }}">{{ f.message }}</div>{% endfor %}
+  {% block guest %}{% endblock %}
+{% endif %}
+<script>
+setTimeout(()=>document.querySelectorAll('.flash').forEach(x=>x.classList.add('fade')),6000);
+</script>
+</body>
+</html>
