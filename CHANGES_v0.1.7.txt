@@ -1,0 +1,34 @@
+SUPERTOOLS BALANCE SHEET DEPARTEMENT/PROJECT AOL v0.1.7
+
+REPORTING UPDATE
+
+1. Neraca group totals
+- TOTAL ASET LANCAR
+- TOTAL ASET TETAP / TIDAK LANCAR
+- TOTAL LIABILITAS JANGKA PENDEK
+- TOTAL LIABILITAS JANGKA PANJANG
+- TOTAL EKUITAS
+- TOTAL ASET / AKTIVA
+- TOTAL LIABILITAS + EKUITAS / PASIVA
+- BALANCE CHECK
+
+2. Dimension filters
+- Neraca Department: multi-select Department / All Department
+- Neraca Project: multi-select Project / All Project
+- Project + Department: multi-select Department and Project together
+- Unmapped dimensions can be selected when present
+- Filters are enforced on journal lines before report aggregation
+- Excel export follows the same selected filters
+
+3. Laba Rugi
+- New Laba Rugi Department
+- New Laba Rugi Project
+- New Laba Rugi Project + Department
+- Date From / Date To filters
+- Multi-select Department / Project filters
+- Revenue, COGS, Gross Profit, Operating Expense, Operating Profit, Other Income, Other Expense, Net Profit
+- Excel export
+
+4. Trial security
+- Existing server-side Balance Sheet masking remains.
+- Profit & Loss values are server-side masked for trial users because trial entitlement only exposes Cash/Bank.

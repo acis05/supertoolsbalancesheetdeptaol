@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import secrets
 from pathlib import Path
 from io import BytesIO
+from urllib.parse import urlencode
 
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
@@ -17,12 +18,13 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import settings
 from app.database import Base, engine, get_db, SessionLocal
-from app.models import User, OAuthCredential, AccurateDatabase, SyncJob, GLAccount, JournalHeader, JournalLine
+from app.models import User, OAuthCredential, AccurateDatabase, SyncJob, GLAccount, JournalHeader, JournalLine, Department, Project
 from app.core.security import hash_password, verify_password, generate_password, encrypt_secret, csrf_token, validate_csrf
 from app.core.auth import current_user, is_admin, can_use_app, is_trial
 from app.services.accurate_client import AccurateOAuthClient, AccurateClient, credential_access_token, client_for_database
 from app.services.sync_service import run_full_sync, run_journal_sync, journal_detail_diagnostic
 from app.reporting.balance_sheet import build_balance_sheet
+from app.reporting.profit_loss import build_profit_loss
 
 BASE_DIR = Path(__file__).resolve().parent
 app = FastAPI(title=settings.app_name)
@@ -429,31 +431,70 @@ async def journals_load_all(request: Request, background_tasks: BackgroundTasks,
     flash(request, "Load All Jurnal dimulai. Refresh halaman ini untuk melihat jumlah jurnal/detail yang berhasil masuk.", "success")
     return RedirectResponse(f"/journals?db_id={row.id}", status_code=303)
 
+def _selected_database(db: Session, user: User, db_id: int | None):
+    q = select(AccurateDatabase).where(AccurateDatabase.user_id == user.id)
+    q = q.where(AccurateDatabase.id == db_id) if db_id else q.where(AccurateDatabase.selected == True)  # noqa: E712
+    return db.scalar(q)
+
+
+def _dimension_filter_context(db: Session, database: AccurateDatabase, request: Request):
+    departments = db.scalars(select(Department).where(Department.database_id == database.id, Department.suspended == False).order_by(Department.name)).all()  # noqa: E712
+    projects = db.scalars(select(Project).where(Project.database_id == database.id, Project.suspended == False).order_by(Project.project_no, Project.name)).all()  # noqa: E712
+    selected_departments = [x for x in request.query_params.getlist("department") if x]
+    selected_projects = [x for x in request.query_params.getlist("project") if x]
+    has_unmapped_department = bool(db.scalar(select(func.count()).select_from(JournalLine).where(JournalLine.database_id == database.id, (JournalLine.department_name == "") | JournalLine.department_name.is_(None))))
+    has_unmapped_project = bool(db.scalar(select(func.count()).select_from(JournalLine).where(JournalLine.database_id == database.id, (JournalLine.project_no == "") | JournalLine.project_no.is_(None))))
+    return {
+        "departments": departments, "projects": projects,
+        "selected_departments": selected_departments, "selected_projects": selected_projects,
+        "has_unmapped_department": has_unmapped_department, "has_unmapped_project": has_unmapped_project,
+    }
+
+
+def _filters_query(selected_departments: list[str], selected_projects: list[str]) -> str:
+    pairs=[]
+    pairs.extend(("department", x) for x in selected_departments)
+    pairs.extend(("project", x) for x in selected_projects)
+    return urlencode(pairs)
+
+
 # ---------- Reports ----------
 @app.get("/report", response_class=HTMLResponse)
 def report(request: Request, dimension: str = "department", as_of: str = "", db_id: int | None = None, db: Session = Depends(get_db)):
     user = require_user(request, db)
     if not can_use_app(user):
-        flash(request, "Trial/langganan sudah berakhir atau akun disuspend.", "error"); return RedirectResponse("/dashboard", status_code=303)
-    q = select(AccurateDatabase).where(AccurateDatabase.user_id == user.id)
-    if db_id: q = q.where(AccurateDatabase.id == db_id)
-    else: q = q.where(AccurateDatabase.selected == True)  # noqa: E712
-    database = db.scalar(q)
+        flash(request, "Trial/langganan sudah berakhir atau akun disuspend.", "error")
+        return RedirectResponse("/dashboard", status_code=303)
+    database = _selected_database(db, user, db_id)
     if not database:
-        flash(request, "Pilih database Accurate Online terlebih dahulu.", "info"); return RedirectResponse("/accurate/databases", status_code=303)
-    report_data = build_balance_sheet(db, user, database, dimension=dimension, as_of=as_of or None)
-    return templates.TemplateResponse("report.html", template_context(request, user, database=database, report=report_data, dimension=dimension, as_of=as_of))
+        flash(request, "Pilih database Accurate Online terlebih dahulu.", "info")
+        return RedirectResponse("/accurate/databases", status_code=303)
+    fctx = _dimension_filter_context(db, database, request)
+    if dimension == "department": fctx["selected_projects"] = []
+    elif dimension == "project": fctx["selected_departments"] = []
+    report_data = build_balance_sheet(
+        db, user, database, dimension=dimension, as_of=as_of or None,
+        department_filters=fctx["selected_departments"], project_filters=fctx["selected_projects"],
+    )
+    fctx["filter_query"] = _filters_query(fctx["selected_departments"], fctx["selected_projects"])
+    return templates.TemplateResponse("report.html", template_context(
+        request, user, database=database, report=report_data, dimension=dimension, as_of=as_of, **fctx
+    ))
 
 
 @app.get("/export.xlsx")
 def export_xlsx(request: Request, dimension: str = "department", as_of: str = "", db_id: int | None = None, db: Session = Depends(get_db)):
     user = require_user(request, db)
-    q = select(AccurateDatabase).where(AccurateDatabase.user_id == user.id)
-    q = q.where(AccurateDatabase.id == db_id) if db_id else q.where(AccurateDatabase.selected == True)  # noqa: E712
-    database = db.scalar(q)
+    database = _selected_database(db, user, db_id)
     if not database:
         raise HTTPException(404, "Database not selected")
-    data = build_balance_sheet(db, user, database, dimension=dimension, as_of=as_of or None)
+    fctx = _dimension_filter_context(db, database, request)
+    if dimension == "department": fctx["selected_projects"] = []
+    elif dimension == "project": fctx["selected_departments"] = []
+    data = build_balance_sheet(
+        db, user, database, dimension=dimension, as_of=as_of or None,
+        department_filters=fctx["selected_departments"], project_filters=fctx["selected_projects"],
+    )
     wb = Workbook(); ws = wb.active; ws.title = "Balance Sheet"
     ws.append([settings.app_name]); ws.append([database.alias, "As of", as_of or "All data", "Mode", dimension])
     headers = ["Account No", "Account Name", "Account Type"] + data["dimensions"] + ["TOTAL"]
@@ -464,19 +505,100 @@ def export_xlsx(request: Request, dimension: str = "department", as_of: str = ""
         ws.append([section["major"]]); ws.cell(ws.max_row,1).font=Font(bold=True,color="FFFFFF"); ws.cell(ws.max_row,1).fill=PatternFill("solid",fgColor="075C59")
         ws.append([section["group"]]); ws.cell(ws.max_row,1).font=Font(bold=True,color="075C59"); ws.cell(ws.max_row,1).fill=PatternFill("solid",fgColor="DFF1EF")
         for row in section["rows"]:
-            vals=[]
-            total=0.0
+            vals=[]; total=0.0
             for d in data["dimensions"]:
-                v=row["values"][d]
-                vals.append("TRIAL LOCKED" if v is None else float(v))
+                v=row["values"][d]; vals.append("TRIAL LOCKED" if v is None else float(v))
                 if v is not None: total += float(v)
             ws.append([row["account_no"], row["name"], row["account_type"], *vals, "TRIAL LOCKED" if row.get("masked") else total])
+        subtotal=[]; subtotal_total=0.0; locked=False
+        for d in data["dimensions"]:
+            v=section["subtotal"][d]
+            if v is None: subtotal.append("TRIAL LOCKED"); locked=True
+            else: subtotal.append(float(v)); subtotal_total+=float(v)
+        ws.append(["", section["subtotal_label"], "", *subtotal, "TRIAL LOCKED" if locked else subtotal_total])
+        for c in ws[ws.max_row]: c.font=Font(bold=True,color="075C59"); c.fill=PatternFill("solid",fgColor="EFF8F6")
+    ws.append([])
+    for label,key in [("TOTAL ASET","ASSET"),("TOTAL LIABILITAS","LIABILITY"),("TOTAL EKUITAS","EQUITY"),("TOTAL LIABILITAS DAN EKUITAS","PASIVA"),("BALANCE CHECK","CHECK")]:
+        vals=[]; total=0.0; locked=False
+        for d in data["dimensions"]:
+            v=data["totals"][d][key]
+            if v is None: vals.append("TRIAL LOCKED"); locked=True
+            else: vals.append(float(v)); total+=float(v)
+        ws.append(["",label,"",*vals,"TRIAL LOCKED" if locked else total])
+        for c in ws[ws.max_row]: c.font=Font(bold=True)
     ws.freeze_panes="D4"
     for col in ws.columns:
-        letter=col[0].column_letter; ws.column_dimensions[letter].width=min(max(12,max(len(str(c.value or "")) for c in col)+2),32)
+        letter=col[0].column_letter; ws.column_dimensions[letter].width=min(max(12,max(len(str(c.value or "")) for c in col)+2),34)
     bio=BytesIO(); wb.save(bio); bio.seek(0)
     filename=f"SUPERTOOLS_{database.alias.replace(' ','_')}_{dimension}.xlsx"
     return StreamingResponse(bio, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition":f'attachment; filename="{filename}"'})
+
+
+@app.get("/profit-loss", response_class=HTMLResponse)
+def profit_loss(request: Request, dimension: str = "department", date_from: str = "", date_to: str = "", db_id: int | None = None, db: Session = Depends(get_db)):
+    user = require_user(request, db)
+    if not can_use_app(user):
+        flash(request, "Trial/langganan sudah berakhir atau akun disuspend.", "error")
+        return RedirectResponse("/dashboard", status_code=303)
+    database = _selected_database(db, user, db_id)
+    if not database:
+        flash(request, "Pilih database Accurate Online terlebih dahulu.", "info")
+        return RedirectResponse("/accurate/databases", status_code=303)
+    fctx = _dimension_filter_context(db, database, request)
+    if dimension == "department": fctx["selected_projects"] = []
+    elif dimension == "project": fctx["selected_departments"] = []
+    data = build_profit_loss(
+        db, user, database, dimension=dimension, date_from=date_from or None, date_to=date_to or None,
+        department_filters=fctx["selected_departments"], project_filters=fctx["selected_projects"],
+    )
+    fctx["filter_query"] = _filters_query(fctx["selected_departments"], fctx["selected_projects"])
+    return templates.TemplateResponse("profit_loss.html", template_context(
+        request, user, database=database, report=data, dimension=dimension, date_from=date_from, date_to=date_to, **fctx
+    ))
+
+
+@app.get("/profit-loss.xlsx")
+def profit_loss_xlsx(request: Request, dimension: str = "department", date_from: str = "", date_to: str = "", db_id: int | None = None, db: Session = Depends(get_db)):
+    user = require_user(request, db)
+    database = _selected_database(db, user, db_id)
+    if not database: raise HTTPException(404, "Database not selected")
+    fctx = _dimension_filter_context(db, database, request)
+    if dimension == "department": fctx["selected_projects"] = []
+    elif dimension == "project": fctx["selected_departments"] = []
+    data = build_profit_loss(db,user,database,dimension=dimension,date_from=date_from or None,date_to=date_to or None,department_filters=fctx["selected_departments"],project_filters=fctx["selected_projects"])
+    wb=Workbook(); ws=wb.active; ws.title="Profit Loss"
+    ws.append([settings.app_name]); ws.append([database.alias,"From",date_from or "All","To",date_to or "All","Mode",dimension])
+    headers=["Account No","Account Name","Account Type"]+data["dimensions"]+["TOTAL"]; ws.append(headers)
+    for c in ws[3]: c.font=Font(bold=True,color="FFFFFF"); c.fill=PatternFill("solid",fgColor="075C59")
+    for section in data["sections"]:
+        ws.append([section["label"]]); ws.cell(ws.max_row,1).font=Font(bold=True,color="FFFFFF"); ws.cell(ws.max_row,1).fill=PatternFill("solid",fgColor="075C59")
+        for row in section["rows"]:
+            vals=[]; total=0.0
+            for d in data["dimensions"]:
+                v=row["values"][d]; vals.append("TRIAL LOCKED" if v is None else float(v))
+                if v is not None: total+=float(v)
+            ws.append([row["account_no"],row["name"],row["account_type"],*vals,"TRIAL LOCKED" if row.get("masked") else total])
+        vals=[]; total=0.0; locked=False
+        for d in data["dimensions"]:
+            v=section["subtotal"][d]
+            if v is None: vals.append("TRIAL LOCKED"); locked=True
+            else: vals.append(float(v)); total+=float(v)
+        ws.append(["",f"TOTAL {section['label']}","",*vals,"TRIAL LOCKED" if locked else total])
+        for c in ws[ws.max_row]: c.font=Font(bold=True); c.fill=PatternFill("solid",fgColor="EFF8F6")
+    ws.append([])
+    for label,key in [("LABA KOTOR","GROSS_PROFIT"),("LABA USAHA","OPERATING_PROFIT"),("LABA BERSIH","NET_PROFIT")]:
+        vals=[]; total=0.0; locked=False
+        for d in data["dimensions"]:
+            v=data["summaries"][d][key]
+            if v is None: vals.append("TRIAL LOCKED"); locked=True
+            else: vals.append(float(v)); total+=float(v)
+        ws.append(["",label,"",*vals,"TRIAL LOCKED" if locked else total])
+        for c in ws[ws.max_row]: c.font=Font(bold=True)
+    for col in ws.columns:
+        letter=col[0].column_letter; ws.column_dimensions[letter].width=min(max(12,max(len(str(c.value or "")) for c in col)+2),34)
+    bio=BytesIO(); wb.save(bio); bio.seek(0)
+    filename=f"SUPERTOOLS_PL_{database.alias.replace(' ','_')}_{dimension}.xlsx"
+    return StreamingResponse(bio,media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",headers={"Content-Disposition":f'attachment; filename="{filename}"'})
 
 
 # ---------- Admin ----------

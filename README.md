@@ -1,6 +1,6 @@
 # SUPERTOOLS BALANCE SHEET DEPARTEMENT/PROJECT AOL
 
-Starter source v0.1.4 untuk web app SaaS **Accurate Online Edition**, siap dipush ke GitHub dan dideploy ke Railway.
+Starter source v0.1.7 untuk web app SaaS **Accurate Online Edition**, siap dipush ke GitHub dan dideploy ke Railway.
 
 ## Fitur yang sudah disiapkan
 
@@ -21,6 +21,10 @@ Starter source v0.1.4 untuk web app SaaS **Accurate Online Edition**, siap dipus
 - Neraca per Department.
 - Neraca per Project.
 - Neraca Project + Department.
+- Filter multi-select Department / Project pada Neraca (All atau pilihan tertentu).
+- Subtotal Neraca: Aset Lancar, Aset Tetap/Tidak Lancar, Liabilitas Jangka Pendek, Liabilitas Jangka Panjang, Ekuitas, Total Aktiva, Total Pasiva.
+- Laba Rugi per Department, per Project, dan Project + Department.
+- Filter periode Dari/Sampai dan filter multi-select dimensi pada Laba Rugi.
 - Current Earnings dari akun Revenue / COGS / Expense / Other Income / Other Expense.
 - Export Excel; trial tetap dimasking pada export.
 - Admin Control Center:
@@ -145,6 +149,7 @@ app/
     sync_service.py
   reporting/
     balance_sheet.py
+    profit_loss.py
   templates/
   static/
 Dockerfile
@@ -209,3 +214,13 @@ Perubahan:
 - tombol **API Detail Diagnostic** menampilkan struktur response asli jurnal pertama tanpa token/credential, agar variasi response Accurate Online dapat didiagnosis langsung dari UI.
 
 Jika `Journal Header > 0` tetapi `Detail GL = 0`, klik **API Detail Diagnostic** dan kirim bagian `Detail Top Keys` + `Raw response shape` untuk penyesuaian parser berikutnya.
+
+
+## v0.1.7 - Balance Sheet Totals + Dimension Filters + Profit & Loss
+
+- Neraca sekarang menampilkan subtotal Aset Lancar, Aset Tetap/Tidak Lancar, Liabilitas Jangka Pendek, Liabilitas Jangka Panjang, Ekuitas, serta Total Aktiva dan Total Pasiva.
+- Report Department / Project / Project+Department mempunyai filter checkbox multi-select. Jika tidak ada pilihan spesifik, report membaca semua dimensi.
+- Ditambahkan Laporan Laba Rugi per Department, Project, dan kombinasi Project+Department dengan filter tanggal Dari/Sampai.
+- Laba Rugi menghitung Pendapatan Usaha, HPP, Laba Kotor, Beban Operasional, Laba Usaha, Pendapatan Lain, Beban Lain, dan Laba Bersih.
+- Export Excel mengikuti filter aktif.
+- Untuk user trial, nilai Laba Rugi tetap dimasking server-side.
