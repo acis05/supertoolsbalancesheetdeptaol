@@ -1,0 +1,8 @@
+SUPERTOOLS BALANCE SHEET DEPARTEMENT/PROJECT AOL v0.1.3
+
+FIX RAILWAY POSTGRESQL DRIVER
+- Railway DATABASE_URL is normally postgresql://...
+- SQLAlchemy uses the psycopg2 dialect for a plain postgresql:// URL.
+- v0.1.2 installed psycopg v3, therefore startup failed with: ModuleNotFoundError: No module named psycopg2.
+- v0.1.3 installs psycopg2-binary==2.9.10, matching SQLAlchemy's selected driver.
+- Startup remains python run_server.py, so the previous PORT fix is preserved.

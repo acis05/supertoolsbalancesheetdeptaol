@@ -32,9 +32,9 @@
 5. Cek `/health` setelah deploy.
 
 
-## v0.1.2 — FIX FINAL PORT RAILWAY
+## v0.1.3 — FIX FINAL PORT RAILWAY
 
-Source v0.1.2 **tidak lagi mengirim `$PORT` ke Uvicorn melalui command line**.
+Source v0.1.3 **tidak lagi mengirim `$PORT` ke Uvicorn melalui command line**.
 Server dijalankan hanya dengan:
 
 ```text

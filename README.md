@@ -1,6 +1,6 @@
 # SUPERTOOLS BALANCE SHEET DEPARTEMENT/PROJECT AOL
 
-Starter source v0.1.2 untuk web app SaaS **Accurate Online Edition**, siap dipush ke GitHub dan dideploy ke Railway.
+Starter source v0.1.3 untuk web app SaaS **Accurate Online Edition**, siap dipush ke GitHub dan dideploy ke Railway.
 
 ## Fitur yang sudah disiapkan
 
@@ -157,14 +157,18 @@ requirements.txt
 
 Dokumentasi Anda sudah menunjukkan `detailJournalVoucher` memiliki `accountNo`, `amount`, `amountType`, `departmentName`, dan `projectNo`. Yang tetap perlu dites pada database AOL nyata adalah bentuk response aktual `detail.do` dan apakah endpoint Journal Voucher yang tersedia pada akun Anda benar-benar merepresentasikan seluruh posting jurnal transaksi yang ingin dimasukkan ke Neraca. Parser dibuat toleran terhadap beberapa nama container detail, tetapi test live tetap diperlukan sebelum release komersial.
 
-## Railway PORT fix (v0.1.2)
+## Railway PORT fix (v0.1.3)
 
 Railway memberikan port runtime melalui environment variable `PORT`. Pada versi sebelumnya, `railway.toml` menggunakan `--port $PORT` sebagai Start Command langsung, sehingga pada beberapa deploy Railway nilai `$PORT` diteruskan sebagai teks literal dan Uvicorn gagal dengan `Invalid value for --port: $PORT`.
 
-v0.1.2 menghapus override `startCommand` dari `railway.toml` dan membiarkan Dockerfile menjalankan:
+v0.1.3 menghapus override `startCommand` dari `railway.toml` dan membiarkan Dockerfile menjalankan:
 
 ```sh
 sh -c "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
 ```
 
 Jika Railway Service Anda pernah memiliki **Custom Start Command** manual, kosongkan/hapus field tersebut agar Dockerfile `CMD` dipakai. Alternatifnya isi manual dengan command shell di atas.
+
+
+## Railway PostgreSQL driver fix (v0.1.3)
+This build uses `psycopg2-binary`, which matches SQLAlchemy's driver for Railway's normal `postgresql://...` `DATABASE_URL`. The previous `PORT` fix remains unchanged.
