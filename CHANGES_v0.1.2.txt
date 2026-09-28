@@ -1,0 +1,11 @@
+SUPERTOOLS BALANCE SHEET DEPARTEMENT/PROJECT AOL v0.1.2
+
+Railway startup hardening:
+- Added run_server.py which reads PORT inside Python and converts it to int.
+- No runtime startup file contains `--port $PORT` anymore.
+- Dockerfile CMD = ["python", "run_server.py"].
+- Procfile = `web: python run_server.py`.
+- railway.toml startCommand = `python run_server.py`.
+- Falls back to port 8000 only if PORT is missing/invalid.
+
+If Railway still logs `--port $PORT`, that command is coming from the Railway service's manually configured Custom Start Command or an older deployment, not from this source tree. Clear/replace that Railway setting.

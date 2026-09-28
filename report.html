@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% set page_title = "Laporan Posisi Keuangan" %}
+{% set page_subtitle = database.alias ~ " • " ~ dimension|replace('_',' ')|title %}
+{% block content %}
+<div class="report-toolbar">
+  <div><span class="eyebrow">REPORT BY</span><div class="segmented"><a class="{{ 'active' if dimension=='department' else '' }}" href="/report?dimension=department&db_id={{ database.id }}&as_of={{ as_of }}">Department</a><a class="{{ 'active' if dimension=='project' else '' }}" href="/report?dimension=project&db_id={{ database.id }}&as_of={{ as_of }}">Project</a><a class="{{ 'active' if dimension=='project_department' else '' }}" href="/report?dimension=project_department&db_id={{ database.id }}&as_of={{ as_of }}">Project + Department</a></div></div>
+  <form method="get" action="/report" class="asof-form"><input type="hidden" name="dimension" value="{{ dimension }}"><input type="hidden" name="db_id" value="{{ database.id }}"><label>As of<input type="date" name="as_of" value="{{ as_of }}"></label><button class="btn btn-primary">Build</button></form><a class="btn btn-accent" href="/export.xlsx?dimension={{ dimension }}&db_id={{ database.id }}&as_of={{ as_of }}">Export Excel</a>
+</div>
+{% if report.trial %}<div class="trial-banner"><div><strong>Trial Preview</strong><span>Hanya Kas/Bank ditampilkan. Pos lain dimasking di server dan diblur sebagai preview.</span></div></div>{% endif %}
+<div class="report-table-wrap">
+<table class="report-table">
+  <thead><tr><th>Akun</th><th>Nama Akun</th><th>Type</th>{% for d in report.dimensions %}<th class="num">{{ d }}</th>{% endfor %}<th class="num">TOTAL</th></tr></thead>
+  <tbody>
+  {% for section in report.sections %}
+    <tr class="major-row"><td colspan="{{ 4 + report.dimensions|length }}">{{ section.major }}</td></tr>
+    <tr class="group-row"><td colspan="{{ 4 + report.dimensions|length }}">{{ section.group }}</td></tr>
+    {% for row in section.rows %}
+      <tr class="{{ 'masked-row' if row.masked else '' }}"><td>{{ row.account_no }}</td><td>{{ row.name }}</td><td><span class="type-pill">{{ row.account_type }}</span></td>
+      {% for d in report.dimensions %}<td class="num">{% if row.masked %}<span class="blur-value">██████</span>{% else %}{{ "{:,.2f}".format(row['values'][d]) }}{% endif %}</td>{% endfor %}
+      <td class="num strong">{% if row.masked %}<span class="blur-value">██████</span>{% else %}{{ "{:,.2f}".format(row['values'].values()|sum) }}{% endif %}</td></tr>
+    {% endfor %}
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<div class="totals-grid">
+  {% for label,key in [('Total Aset','ASSET'),('Total Liabilitas','LIABILITY'),('Total Ekuitas','EQUITY'),('Liabilitas + Ekuitas','PASIVA'),('Balance Check','CHECK')] %}
+  <div class="total-card"><span>{{ label }}</span>{% if report.trial %}<strong class="blur-value">████████</strong>{% else %}<div class="mini-values">{% for d in report.dimensions %}<b>{{ d }}</b><em>{{ "{:,.2f}".format(report.totals[d][key]) }}</em>{% endfor %}</div>{% endif %}</div>
+  {% endfor %}
+</div>
+{% if report.trial %}<div class="upgrade-cta"><div><span class="eyebrow light">UNLOCK FULL BALANCE SHEET</span><h2>Aktifkan langganan untuk membuka semua akun.</h2><p>Trial tetap aman untuk demo karena data selain Kas/Bank tidak dikirim sebagai nilai penuh ke halaman.</p></div><a class="btn btn-light" href="/account">Lihat Status Akun</a></div>{% endif %}
+{% endblock %}

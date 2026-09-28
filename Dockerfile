@@ -10,6 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Railway injects PORT at runtime. Using sh -c here is deliberate so ${PORT}
-# is expanded by a shell. The default keeps local Docker runs convenient.
-CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# IMPORTANT: do not pass $PORT on the command line.
+# run_server.py reads Railway's PORT environment variable in Python and
+# converts it to int before handing it to uvicorn.
+CMD ["python", "run_server.py"]

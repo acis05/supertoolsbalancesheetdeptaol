@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% set page_title = "Admin Control Center" %}
+{% set page_subtitle = "Trial, activation, suspend, password reset" %}
+{% block content %}
+<div class="stat-grid four admin-stats">{% for key in ['TRIAL','ACTIVE','SUSPENDED','EXPIRED'] %}<div class="stat-card"><span>{{ key }}</span><strong>{{ counts[key] }}</strong><small>users</small></div>{% endfor %}</div>
+<div class="panel"><div class="panel-head"><div><span class="eyebrow">USER MANAGEMENT</span><h3>Semua User</h3></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>User</th><th>Status</th><th>Trial End</th><th>Subscription End</th><th>Created</th><th></th></tr></thead><tbody>{% for u in users %}{% if u.role != 'ADMIN' %}<tr><td><strong>{{ u.full_name or '-' }}</strong><small>{{ u.email }}</small></td><td><span class="tag {{ u.status|lower }}">{{ u.status }}</span></td><td>{{ u.trial_ends_at.strftime('%d/%m/%Y') if u.trial_ends_at else '-' }}</td><td>{{ u.subscription_ends_at.strftime('%d/%m/%Y') if u.subscription_ends_at else '-' }}</td><td>{{ u.created_at.strftime('%d/%m/%Y') }}</td><td><a class="btn btn-outline btn-sm" href="/admin/users/{{ u.id }}">Manage</a></td></tr>{% endif %}{% endfor %}</tbody></table></div></div>
+{% endblock %}

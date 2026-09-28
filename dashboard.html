@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% set page_title = "Dashboard" %}
+{% set page_subtitle = "Accurate Online • Subscription • Sync Status" %}
+{% block content %}
+{% if user.status == 'TRIAL' %}
+<div class="trial-banner"><div><strong>Trial Mode</strong><span>{{ days_left }} hari tersisa • Hanya akun Kas/Bank yang dapat dilihat penuh.</span></div><a class="btn btn-accent" href="/account">Lihat Status</a></div>
+{% elif user.status in ['EXPIRED','SUSPENDED'] %}
+<div class="danger-banner"><div><strong>{{ user.status }}</strong><span>Akses report penuh tidak aktif. Hubungi administrator.</span></div></div>
+{% endif %}
+
+<div class="hero-card">
+  <div><span class="eyebrow light">ACCURATE ONLINE EDITION</span><h1>Balance Sheet by<br>Department & Project</h1><p>Sync akun, department, project, dan Journal Voucher dari Accurate Online.</p></div>
+  <div class="hero-actions">
+    {% if user.oauth %}<a class="btn btn-light" href="/accurate/databases">Kelola Database</a>{% else %}<a class="btn btn-light" href="/accurate/connect">Connect Accurate Online</a>{% endif %}
+  </div>
+</div>
+
+<div class="stat-grid four">
+  <div class="stat-card"><span>PLAN</span><strong>{{ user.status }}</strong><small>{% if user.subscription_ends_at %}s/d {{ user.subscription_ends_at.strftime('%d %b %Y') }}{% elif user.trial_ends_at %}trial s/d {{ user.trial_ends_at.strftime('%d %b %Y') }}{% endif %}</small></div>
+  <div class="stat-card"><span>DATABASE</span><strong>{{ databases|length }} / {{ max_databases }}</strong><small>Active plan maks. 5 database</small></div>
+  <div class="stat-card"><span>OAUTH</span><strong>{{ 'CONNECTED' if user.oauth else 'NOT CONNECTED' }}</strong><small>{{ user.oauth.aol_user_email if user.oauth else 'Hubungkan Accurate Online' }}</small></div>
+  <div class="stat-card"><span>LAST SYNC</span><strong>{{ selected.last_sync_at.strftime('%d/%m %H:%M') if selected and selected.last_sync_at else '-' }}</strong><small>{{ selected.alias if selected else 'Belum pilih database' }}</small></div>
+</div>
+
+<div class="grid-2">
+  <div class="panel">
+    <div class="panel-head"><div><span class="eyebrow">DATABASE</span><h3>Database Terpilih</h3></div></div>
+    {% if selected %}
+      <div class="database-card"><div class="database-icon">DB</div><div><strong>{{ selected.alias }}</strong><small>ID AOL {{ selected.accurate_db_id }}</small></div><span class="status-dot"></span></div>
+      <div class="button-row">
+        <form method="post" action="/sync/{{ selected.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-primary">Sync Data</button></form>
+        <a class="btn btn-outline" href="/report?dimension=department&db_id={{ selected.id }}">Build Neraca</a>
+      </div>
+    {% else %}
+      <div class="empty-state"><div class="empty-icon">◫</div><h3>Belum ada database</h3><p>Connect Accurate Online lalu pilih database.</p><a class="btn btn-primary" href="/accurate/connect">Connect Accurate Online</a></div>
+    {% endif %}
+  </div>
+  <div class="panel">
+    <div class="panel-head"><div><span class="eyebrow">SYNC ENGINE</span><h3>Status Sinkronisasi</h3></div></div>
+    {% if last_job %}
+      <div class="progress-meta"><strong>{{ last_job.status }}</strong><span>{{ last_job.progress }}%</span></div>
+      <div class="progress"><i style="width:{{ last_job.progress }}%"></i></div>
+      <p class="muted">{{ last_job.message }}</p>
+      {% if last_job.status in ['QUEUED','RUNNING'] %}<p class="microcopy">Refresh halaman untuk melihat progress terbaru.</p>{% endif %}
+    {% else %}
+      <div class="empty-state compact"><p>Belum ada sync.</p></div>
+    {% endif %}
+    <div class="feature-list"><span>✓ GL Account</span><span>✓ Department</span><span>✓ Project</span><span>✓ Journal Voucher Detail</span></div>
+  </div>
+</div>
+{% endblock %}

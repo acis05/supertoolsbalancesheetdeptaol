@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% set page_title = "Account & Subscription" %}
+{% set page_subtitle = "Status akun SUPERTOOLS dan keamanan" %}
+{% block content %}
+<div class="grid-2">
+  <div class="panel"><span class="eyebrow">SUBSCRIPTION</span><h3>{{ user.status }}</h3>
+    <div class="info-list"><div><span>Email</span><strong>{{ user.email }}</strong></div><div><span>Trial ends</span><strong>{{ user.trial_ends_at.strftime('%d/%m/%Y') if user.trial_ends_at else '-' }}</strong></div><div><span>Subscription ends</span><strong>{{ user.subscription_ends_at.strftime('%d/%m/%Y') if user.subscription_ends_at else '-' }}</strong></div></div>
+    {% if user.status == 'TRIAL' %}<div class="notice-box">Trial 7 hari: hanya akun CASH_BANK terlihat penuh. Akun lain dimasking.</div>{% endif %}
+  </div>
+  <div class="panel"><span class="eyebrow">SECURITY</span><h3>Ganti Password</h3><form method="post" action="/account/password" class="form-stack"><input type="hidden" name="csrf" value="{{ csrf }}"><label>Password saat ini<input type="password" name="current_password" required></label><label>Password baru<input type="password" name="new_password" minlength="8" required></label><button class="btn btn-primary">Simpan Password</button></form></div>
+</div>
+{% endblock %}
